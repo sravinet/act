@@ -69,6 +69,8 @@ sudo apt-get install podman
 sudo dnf install podman
 ```
 
+> **macOS Note**: Act automatically detects Podman machine sockets on macOS, including SSH-based connections. No manual configuration needed!
+
 ## Configuration Options
 
 | CLI Flag | Environment Variable | Description |
