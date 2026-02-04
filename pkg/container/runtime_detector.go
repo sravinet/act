@@ -317,10 +317,45 @@ func (rd *RuntimeDetector) verifyPodman() bool {
 	return true
 }
 
+// getPodmanMachineSocket gets the Podman machine API socket path on macOS
+func (rd *RuntimeDetector) getPodmanMachineSocket() (string, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	
+	cmd := exec.CommandContext(ctx, "podman", "machine", "inspect", "--format", "{{.ConnectionInfo.PodmanSocket.Path}}")
+	output, err := cmd.Output()
+	if err != nil {
+		rd.logger.Debugf("Failed to get Podman machine socket: %v", err)
+		return "", false
+	}
+	
+	socketPath := strings.TrimSpace(string(output))
+	if socketPath == "" || socketPath == "<no value>" {
+		rd.logger.Debug("No Podman machine socket path found")
+		return "", false
+	}
+	
+	// Verify socket exists and is accessible
+	if _, err := os.Stat(socketPath); err != nil {
+		rd.logger.Debugf("Podman machine socket not accessible: %v", err)
+		return "", false
+	}
+	
+	rd.logger.Debugf("Found Podman machine socket: %s", socketPath)
+	return socketPath, true
+}
+
 // GetSocketForRuntime returns the socket path for a specific runtime
 func (rd *RuntimeDetector) GetSocketForRuntime(runtime ContainerRuntime) (string, bool) {
 	if rd.customSocket != "" {
 		return rd.customSocket, true
+	}
+
+	// Special handling for Podman on macOS - check for machine socket first
+	if runtime == RuntimePodman {
+		if socketPath, found := rd.getPodmanMachineSocket(); found {
+			return "unix://" + socketPath, true
+		}
 	}
 
 	sockets := rd.detectRuntimeSockets()

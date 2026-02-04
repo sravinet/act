@@ -29,7 +29,7 @@ func (cr *containerReference) connectPodman() common.Executor {
 
 		logger := common.Logger(ctx)
 		
-		// Get Podman socket
+		// Get Podman socket using enhanced detection (supports macOS machine sockets)
 		socket, found := globalDetector.GetSocketForRuntime(RuntimePodman)
 		if !found {
 			return fmt.Errorf("podman socket not found or not accessible")
