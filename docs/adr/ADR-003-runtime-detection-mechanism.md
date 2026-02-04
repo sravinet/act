@@ -8,6 +8,7 @@
 - Multi-layered detection algorithm implemented with Podman preference → Docker fallback
 - CLI integration: `--container-runtime=auto|docker|podman` and `--container-socket=/path`
 - Environment variable support with proper precedence (CLI > environment > auto-detection)
+- Enhanced macOS support: Automatic Podman machine socket detection via `podman machine inspect`
 - Graceful error handling with detailed user guidance when no runtime available
 - Socket detection covers all major platforms and installation patterns
 
@@ -97,6 +98,21 @@ When multiple runtimes are available:
 1. **Podman preferred**: Better security (rootless), no daemon required
 2. **Docker fallback**: Broader compatibility, mature tooling
 3. **User override**: Always respect explicit user choice
+
+### macOS Podman Machine Support
+
+Special handling for Podman on macOS where Podman runs in a VM:
+- **Auto-detection**: Uses `podman machine inspect` to get API socket path
+- **SSH proxy support**: Detects gvproxy socket that handles SSH tunneling
+- **Zero configuration**: Works seamlessly with `podman machine start`
+
+```go
+func (rd *RuntimeDetector) getPodmanMachineSocket() (string, bool) {
+    cmd := exec.Command("podman", "machine", "inspect", 
+        "--format", "{{.ConnectionInfo.PodmanSocket.Path}}")
+    output, err := cmd.Output()
+    // Returns: /var/folders/.../podman-machine-default-api.sock
+}
 
 ## Consequences
 
