@@ -39,10 +39,11 @@ import (
 	"github.com/nektos/act/pkg/filecollector"
 )
 
-// NewContainer creates a reference to a container
-func NewContainer(input *NewContainerInput) ExecutionsEnvironment {
+// newDockerContainer creates a reference to a Docker container
+func newDockerContainer(input *NewContainerInput) ExecutionsEnvironment {
 	cr := new(containerReference)
 	cr.input = input
+	cr.runtime = RuntimeDocker
 	return cr
 }
 
@@ -66,7 +67,7 @@ func supportsContainerImagePlatform(ctx context.Context, cli client.APIClient) b
 
 func (cr *containerReference) Create(capAdd []string, capDrop []string) common.Executor {
 	return common.
-		NewInfoExecutor("%sdocker create image=%s platform=%s entrypoint=%+q cmd=%+q network=%+q", logPrefix, cr.input.Image, cr.input.Platform, cr.input.Entrypoint, cr.input.Cmd, cr.input.NetworkMode).
+		NewInfoExecutor("%s%s create image=%s platform=%s entrypoint=%+q cmd=%+q network=%+q", logPrefix, cr.runtime.String(), cr.input.Image, cr.input.Platform, cr.input.Entrypoint, cr.input.Cmd, cr.input.NetworkMode).
 		Then(
 			common.NewPipelineExecutor(
 				cr.connect(),
@@ -78,7 +79,7 @@ func (cr *containerReference) Create(capAdd []string, capDrop []string) common.E
 
 func (cr *containerReference) Start(attach bool) common.Executor {
 	return common.
-		NewInfoExecutor("%sdocker run image=%s platform=%s entrypoint=%+q cmd=%+q network=%+q", logPrefix, cr.input.Image, cr.input.Platform, cr.input.Entrypoint, cr.input.Cmd, cr.input.NetworkMode).
+		NewInfoExecutor("%s%s run image=%s platform=%s entrypoint=%+q cmd=%+q network=%+q", logPrefix, cr.runtime.String(), cr.input.Image, cr.input.Platform, cr.input.Entrypoint, cr.input.Cmd, cr.input.NetworkMode).
 		Then(
 			common.NewPipelineExecutor(
 				cr.connect(),
@@ -204,11 +205,12 @@ func (cr *containerReference) ReplaceLogWriter(stdout io.Writer, stderr io.Write
 }
 
 type containerReference struct {
-	cli   client.APIClient
-	id    string
-	input *NewContainerInput
-	UID   int
-	GID   int
+	cli     client.APIClient
+	id      string
+	input   *NewContainerInput
+	runtime ContainerRuntime
+	UID     int
+	GID     int
 	LinuxContainerEnvironmentExtensions
 }
 
@@ -280,6 +282,21 @@ func (cr *containerReference) connect() common.Executor {
 		if cr.cli != nil {
 			return nil
 		}
+		
+		switch cr.runtime {
+		case RuntimePodman:
+			return cr.connectPodman()(ctx)
+		case RuntimeDocker:
+			return cr.connectDocker()(ctx)
+		default:
+			return fmt.Errorf("unknown runtime: %s", cr.runtime.String())
+		}
+	}
+}
+
+// connectDocker creates a connection to the Docker daemon
+func (cr *containerReference) connectDocker() common.Executor {
+	return func(ctx context.Context) error {
 		cli, err := GetDockerClient(ctx)
 		if err != nil {
 			return err
@@ -407,7 +424,8 @@ func (cr *containerReference) mergeContainerConfigs(ctx context.Context, config 
 	return config, hostConfig, nil
 }
 
-func (cr *containerReference) create(capAdd []string, capDrop []string) common.Executor {
+// createGeneric creates a container using the Docker-compatible API (works for both Docker and Podman)
+func (cr *containerReference) createGeneric(capAdd []string, capDrop []string) common.Executor {
 	return func(ctx context.Context) error {
 		if cr.id != "" {
 			return nil
@@ -498,6 +516,20 @@ func (cr *containerReference) create(capAdd []string, capDrop []string) common.E
 
 		cr.id = resp.ID
 		return nil
+	}
+}
+
+// create wraps createGeneric with runtime-specific handling
+func (cr *containerReference) create(capAdd []string, capDrop []string) common.Executor {
+	switch cr.runtime {
+	case RuntimePodman:
+		return cr.createPodman(capAdd, capDrop)
+	case RuntimeDocker:
+		return cr.createGeneric(capAdd, capDrop)
+	default:
+		return func(ctx context.Context) error {
+			return fmt.Errorf("unsupported runtime: %s", cr.runtime.String())
+		}
 	}
 }
 
@@ -867,7 +899,7 @@ func (cr *containerReference) attach() common.Executor {
 	}
 }
 
-func (cr *containerReference) start() common.Executor {
+func (cr *containerReference) startGeneric() common.Executor {
 	return func(ctx context.Context) error {
 		logger := common.Logger(ctx)
 		logger.Debugf("Starting container: %v", cr.id)
@@ -878,6 +910,20 @@ func (cr *containerReference) start() common.Executor {
 
 		logger.Debugf("Started container: %v", cr.id)
 		return nil
+	}
+}
+
+// start wraps startGeneric with runtime-specific handling
+func (cr *containerReference) start() common.Executor {
+	switch cr.runtime {
+	case RuntimePodman:
+		return cr.startPodman()
+	case RuntimeDocker:
+		return cr.startGeneric()
+	default:
+		return func(ctx context.Context) error {
+			return fmt.Errorf("unsupported runtime: %s", cr.runtime.String())
+		}
 	}
 }
 
