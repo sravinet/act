@@ -2,7 +2,13 @@
 
 ## Status
 
-Implemented ✅ (February 2026)
+**Implemented ✅ (February 2026)**
+
+**Implementation Notes:**
+- Successfully replaced all `GetDockerClient()` calls with runtime-aware `GetContainerClient()` factory pattern
+- CLI integration completed with `--container-runtime` and `--container-socket` flags
+- Environment variable support: `ACT_CONTAINER_RUNTIME`, `ACT_CONTAINER_SOCKET`
+- Zero breaking changes achieved - existing Docker workflows unchanged
 
 ## Context
 

@@ -2,7 +2,14 @@
 
 ## Status
 
-Implemented ✅ (February 2026)
+**Implemented ✅ (February 2026)**
+
+**Implementation Notes:**
+- Multi-layered detection algorithm implemented with Podman preference → Docker fallback
+- CLI integration: `--container-runtime=auto|docker|podman` and `--container-socket=/path`
+- Environment variable support with proper precedence (CLI > environment > auto-detection)
+- Graceful error handling with detailed user guidance when no runtime available
+- Socket detection covers all major platforms and installation patterns
 
 ## Context
 
