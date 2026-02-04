@@ -60,9 +60,19 @@ func logDockerResponse(logger logrus.FieldLogger, dockerResponse io.ReadCloser, 
 
 		if msg.Status != "" {
 			if msg.Progress != "" {
-				writeLog(logger, isError, "%s :: %s :: %s\n", msg.Status, msg.ID, msg.Progress)
+				// Show progress for downloading/extracting operations
+				if msg.Status == "Downloading" || msg.Status == "Extracting" || msg.Status == "Pulling fs layer" {
+					writeLog(logger, false, "%s %s: %s", msg.Status, msg.ID, msg.Progress)
+				} else {
+					writeLog(logger, isError, "%s :: %s :: %s\n", msg.Status, msg.ID, msg.Progress)
+				}
 			} else {
-				writeLog(logger, isError, "%s :: %s\n", msg.Status, msg.ID)
+				// Show important status updates
+				if msg.Status == "Pull complete" || msg.Status == "Already exists" || msg.Status == "Download complete" {
+					writeLog(logger, false, "%s: %s", msg.Status, msg.ID)
+				} else {
+					writeLog(logger, isError, "%s :: %s\n", msg.Status, msg.ID)
+				}
 			}
 		} else if msg.Stream != "" {
 			writeLog(logger, isError, "%s", msg.Stream)

@@ -44,7 +44,7 @@ func NewDockerPullExecutor(input NewDockerPullExecutorInput) common.Executor {
 		}
 
 		imageRef := cleanImage(ctx, input.Image)
-		logger.Debugf("pulling image '%v' (%s)", imageRef, input.Platform)
+		logger.Infof("📥 Pulling image '%v' (%s) - this may take a few minutes for large images", imageRef, input.Platform)
 
 		cli, err := GetContainerClient(ctx)
 		if err != nil {
@@ -70,6 +70,8 @@ func NewDockerPullExecutor(input NewDockerPullExecutorInput) common.Executor {
 			}
 			return err
 		}
+		
+		logger.Infof("✅ Successfully pulled image '%v'", imageRef)
 		return nil
 	}
 }
