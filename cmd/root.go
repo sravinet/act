@@ -408,6 +408,15 @@ func newRunCommand(ctx context.Context, input *Input) func(*cobra.Command, []str
 			return listOptions(cmd)
 		}
 
+		// Configure container runtime early to setup preferences before socket detection
+		tempConfig := &runner.Config{
+			ContainerRuntime: input.containerRuntime,
+			ContainerSocket:  input.containerSocket,
+		}
+		if err := configureContainerRuntime(tempConfig); err != nil {
+			return err
+		}
+
 		if ret, err := container.GetSocketAndHost(input.containerDaemonSocket); err != nil {
 			log.Warnf("Couldn't get a valid docker connection: %+v", err)
 		} else {
@@ -651,10 +660,7 @@ func newRunCommand(ctx context.Context, input *Input) func(*cobra.Command, []str
 			ConcurrentJobs:                     input.concurrentJobs,
 		}
 		
-		// Configure container runtime
-		if err := configureContainerRuntime(config); err != nil {
-			return err
-		}
+		// Container runtime already configured early in process
 		if input.useNewActionCache || len(input.localRepository) > 0 {
 			if input.actionOfflineMode {
 				config.ActionCache = &runner.GoGitActionCacheOfflineMode{
@@ -816,21 +822,35 @@ func watchAndRun(ctx context.Context, fn common.Executor) error {
 
 // configureContainerRuntime configures the container runtime based on CLI options
 func configureContainerRuntime(config *runner.Config) error {
-	// Parse container runtime preference
+	// First check environment variables (CLI flags override environment)
+	if envRuntime := os.Getenv("ACT_CONTAINER_RUNTIME"); envRuntime != "" && (config.ContainerRuntime == "" || config.ContainerRuntime == "auto") {
+		switch strings.ToLower(envRuntime) {
+		case "docker":
+			container.SetRuntimePreference(container.RuntimeDocker)
+		case "podman":
+			container.SetRuntimePreference(container.RuntimePodman)
+		}
+	}
+	
+	if envSocket := os.Getenv("ACT_CONTAINER_SOCKET"); envSocket != "" && config.ContainerSocket == "" {
+		container.SetCustomSocket(envSocket)
+	}
+	
+	// Parse container runtime preference from CLI (overrides environment)
 	switch strings.ToLower(config.ContainerRuntime) {
 	case "auto", "":
-		// Let the detector choose automatically
+		// Let the detector choose automatically - no preference set (unless from environment)
 	case "docker":
-		os.Setenv("ACT_CONTAINER_RUNTIME", "docker")
+		container.SetRuntimePreference(container.RuntimeDocker)
 	case "podman":
-		os.Setenv("ACT_CONTAINER_RUNTIME", "podman")
+		container.SetRuntimePreference(container.RuntimePodman)
 	default:
 		return fmt.Errorf("unsupported container runtime: %s (supported: auto, docker, podman)", config.ContainerRuntime)
 	}
 	
-	// Configure custom socket if specified
+	// Configure custom socket if specified (CLI overrides environment)
 	if config.ContainerSocket != "" {
-		os.Setenv("ACT_CONTAINER_SOCKET", config.ContainerSocket)
+		container.SetCustomSocket(config.ContainerSocket)
 	}
 	
 	return nil
