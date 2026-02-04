@@ -7,6 +7,7 @@ This directory contains Architecture Decision Records for the Act project.
 - [ADR-001: Container Runtime Abstraction](./ADR-001-container-runtime-abstraction.md)
 - [ADR-002: Podman Integration Strategy](./ADR-002-podman-integration-strategy.md) 
 - [ADR-003: Runtime Detection Mechanism](./ADR-003-runtime-detection-mechanism.md)
+- [ADR-004: User Experience Optimizations](./ADR-004-user-experience-optimizations.md)
 
 ## ADR Template
 

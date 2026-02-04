@@ -9,6 +9,7 @@
 - Runtime-specific optimizations added for Podman (rootless detection, startup improvements)
 - Factory pattern enables seamless switching between Docker and Podman implementations
 - All container operations (build, pull, run, network, volume) support both runtimes
+- Enhanced user experience with progress indicators and performance optimizations
 
 ## Context
 
