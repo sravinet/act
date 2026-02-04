@@ -46,6 +46,8 @@ type Config struct {
 	ContainerArchitecture              string                       // Desired OS/architecture platform for running containers
 	ContainerDaemonSocket              string                       // Path to Docker daemon socket
 	ContainerOptions                   string                       // Options for the job container
+	ContainerRuntime                   string                       // Container runtime to use: auto, docker, podman
+	ContainerSocket                    string                       // Container runtime socket path
 	UseGitIgnore                       bool                         // controls if paths in .gitignore should not be copied into container, default true
 	GitHubInstance                     string                       // GitHub instance to use, default "github.com"
 	ContainerCapAdd                    []string                     // list of kernel capabilities to add to the containers

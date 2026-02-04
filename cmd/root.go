@@ -89,6 +89,8 @@ func createRootCommand(ctx context.Context, input *Input, version string) *cobra
 	rootCmd.Flags().StringVar(&input.defaultBranch, "defaultbranch", "", "the name of the main branch")
 	rootCmd.Flags().BoolVar(&input.privileged, "privileged", false, "use privileged mode")
 	rootCmd.Flags().StringVar(&input.usernsMode, "userns", "", "user namespace to use")
+	rootCmd.Flags().StringVar(&input.containerRuntime, "container-runtime", "auto", "container runtime to use: auto, docker, podman")
+	rootCmd.Flags().StringVar(&input.containerSocket, "container-socket", "", "container runtime socket path (overrides detection)")
 	rootCmd.Flags().BoolVar(&input.useGitIgnore, "use-gitignore", true, "Controls whether paths specified in .gitignore should be copied into container")
 	rootCmd.Flags().StringArrayVarP(&input.containerCapAdd, "container-cap-add", "", []string{}, "kernel capabilities to add to the workflow containers (e.g. --container-cap-add SYS_PTRACE)")
 	rootCmd.Flags().StringArrayVarP(&input.containerCapDrop, "container-cap-drop", "", []string{}, "kernel capabilities to remove from the workflow containers (e.g. --container-cap-drop SYS_PTRACE)")
@@ -630,6 +632,8 @@ func newRunCommand(ctx context.Context, input *Input) func(*cobra.Command, []str
 			ContainerArchitecture:              input.containerArchitecture,
 			ContainerDaemonSocket:              input.containerDaemonSocket,
 			ContainerOptions:                   input.containerOptions,
+			ContainerRuntime:                   input.containerRuntime,
+			ContainerSocket:                    input.containerSocket,
 			UseGitIgnore:                       input.useGitIgnore,
 			GitHubInstance:                     input.githubInstance,
 			ContainerCapAdd:                    input.containerCapAdd,
@@ -645,6 +649,11 @@ func newRunCommand(ctx context.Context, input *Input) func(*cobra.Command, []str
 			Matrix:                             matrixes,
 			ContainerNetworkMode:               docker_container.NetworkMode(input.networkName),
 			ConcurrentJobs:                     input.concurrentJobs,
+		}
+		
+		// Configure container runtime
+		if err := configureContainerRuntime(config); err != nil {
+			return err
 		}
 		if input.useNewActionCache || len(input.localRepository) > 0 {
 			if input.actionOfflineMode {
@@ -802,5 +811,27 @@ func watchAndRun(ctx context.Context, fn common.Executor) error {
 		}
 	}
 
+	return nil
+}
+
+// configureContainerRuntime configures the container runtime based on CLI options
+func configureContainerRuntime(config *runner.Config) error {
+	// Parse container runtime preference
+	switch strings.ToLower(config.ContainerRuntime) {
+	case "auto", "":
+		// Let the detector choose automatically
+	case "docker":
+		os.Setenv("ACT_CONTAINER_RUNTIME", "docker")
+	case "podman":
+		os.Setenv("ACT_CONTAINER_RUNTIME", "podman")
+	default:
+		return fmt.Errorf("unsupported container runtime: %s (supported: auto, docker, podman)", config.ContainerRuntime)
+	}
+	
+	// Configure custom socket if specified
+	if config.ContainerSocket != "" {
+		os.Setenv("ACT_CONTAINER_SOCKET", config.ContainerSocket)
+	}
+	
 	return nil
 }
