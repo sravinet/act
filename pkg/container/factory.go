@@ -1,8 +1,13 @@
 package container
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"strings"
 
+	"github.com/docker/cli/cli/connhelper"
+	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -144,4 +149,104 @@ func SetRuntimeOverride(runtime ContainerRuntime) {
 // ClearRuntimeOverride clears the runtime override
 func ClearRuntimeOverride() {
 	runtimeOverride = RuntimeUnknown
+}
+
+// GetContainerClient returns a runtime-aware container client
+// This replaces GetDockerClient() with multi-runtime support
+func GetContainerClient(ctx context.Context) (client.APIClient, error) {
+	runtime := getSelectedRuntime()
+	
+	logger := log.WithFields(log.Fields{
+		"component": "container-client",
+		"runtime":   runtime.String(),
+	})
+	
+	switch runtime {
+	case RuntimePodman:
+		return createPodmanClient(ctx, logger)
+	case RuntimeDocker:
+		return createDockerClient(ctx, logger)
+	default:
+		return nil, fmt.Errorf("no container runtime available\n\n%s", GetRuntimeDetectionError())
+	}
+}
+
+// createDockerClient creates a Docker client (replaces the old GetDockerClient logic)
+func createDockerClient(ctx context.Context, logger *log.Entry) (client.APIClient, error) {
+	logger.Debug("Creating Docker client")
+	
+	dockerHost := os.Getenv("DOCKER_HOST")
+	
+	var cli client.APIClient
+	var err error
+	
+	if strings.HasPrefix(dockerHost, "ssh://") {
+		var helper *connhelper.ConnectionHelper
+		helper, err = connhelper.GetConnectionHelper(dockerHost)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SSH connection helper: %w", err)
+		}
+		cli, err = client.NewClientWithOpts(
+			client.WithHost(helper.Host),
+			client.WithDialContext(helper.Dialer),
+		)
+	} else {
+		cli, err = client.NewClientWithOpts(client.FromEnv)
+	}
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Docker daemon: %w", err)
+	}
+	
+	cli.NegotiateAPIVersion(ctx)
+	logger.Debug("Successfully connected to Docker daemon")
+	return cli, nil
+}
+
+// createPodmanClient creates a Podman client using Docker-compatible API
+func createPodmanClient(ctx context.Context, logger *log.Entry) (client.APIClient, error) {
+	logger.Debug("Creating Podman client")
+	
+	// Get Podman socket from our runtime detector
+	socket, found := globalDetector.GetSocketForRuntime(RuntimePodman)
+	if !found {
+		return nil, fmt.Errorf("podman socket not found or not accessible")
+	}
+	
+	logger.Debugf("Connecting to Podman at %s", socket)
+	
+	var cli client.APIClient
+	var err error
+	
+	// Check if it's an SSH connection
+	if strings.HasPrefix(socket, "ssh://") {
+		var helper *connhelper.ConnectionHelper
+		helper, err = connhelper.GetConnectionHelper(socket)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SSH connection helper for Podman: %w", err)
+		}
+		cli, err = client.NewClientWithOpts(
+			client.WithHost(helper.Host),
+			client.WithDialContext(helper.Dialer),
+		)
+	} else {
+		// Direct socket connection
+		cli, err = client.NewClientWithOpts(
+			client.WithHost(socket),
+			client.WithAPIVersionNegotiation(),
+		)
+	}
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Podman daemon: %w", err)
+	}
+	
+	// Verify connection works
+	if _, err = cli.Ping(ctx); err != nil {
+		cli.Close()
+		return nil, fmt.Errorf("failed to ping Podman daemon: %w", err)
+	}
+	
+	logger.Debug("Successfully connected to Podman daemon")
+	return cli, nil
 }
