@@ -30,7 +30,7 @@ func NewDockerBuildExecutor(input NewDockerBuildExecutorInput) common.Executor {
 			return nil
 		}
 
-		cli, err := GetDockerClient(ctx)
+		cli, err := GetContainerClient(ctx)
 		if err != nil {
 			return err
 		}

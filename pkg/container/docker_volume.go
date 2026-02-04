@@ -12,7 +12,7 @@ import (
 
 func NewDockerVolumeRemoveExecutor(volumeName string, force bool) common.Executor {
 	return func(ctx context.Context) error {
-		cli, err := GetDockerClient(ctx)
+		cli, err := GetContainerClient(ctx)
 		if err != nil {
 			return err
 		}
@@ -43,7 +43,7 @@ func removeExecutor(volume string, force bool) common.Executor {
 			return nil
 		}
 
-		cli, err := GetDockerClient(ctx)
+		cli, err := GetContainerClient(ctx)
 		if err != nil {
 			return err
 		}

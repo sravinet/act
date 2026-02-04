@@ -241,7 +241,7 @@ func GetDockerClient(ctx context.Context) (cli client.APIClient, err error) {
 
 func GetHostInfo(ctx context.Context) (info system.Info, err error) {
 	var cli client.APIClient
-	cli, err = GetDockerClient(ctx)
+	cli, err = GetContainerClient(ctx)
 	if err != nil {
 		return info, err
 	}
@@ -297,7 +297,7 @@ func (cr *containerReference) connect() common.Executor {
 // connectDocker creates a connection to the Docker daemon
 func (cr *containerReference) connectDocker() common.Executor {
 	return func(ctx context.Context) error {
-		cli, err := GetDockerClient(ctx)
+		cli, err := GetContainerClient(ctx)
 		if err != nil {
 			return err
 		}

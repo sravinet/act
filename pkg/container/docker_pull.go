@@ -46,7 +46,7 @@ func NewDockerPullExecutor(input NewDockerPullExecutorInput) common.Executor {
 		imageRef := cleanImage(ctx, input.Image)
 		logger.Debugf("pulling image '%v' (%s)", imageRef, input.Platform)
 
-		cli, err := GetDockerClient(ctx)
+		cli, err := GetContainerClient(ctx)
 		if err != nil {
 			return err
 		}
